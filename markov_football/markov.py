@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Iterable
 from collections import namedtuple, OrderedDict, defaultdict
 import numpy as np
+import math
 
 Tx = namedtuple('Tx', ['s_from', 's_to', 'weight'])
 
@@ -59,6 +60,14 @@ class MarkovChain(object):
             return {s: 1.0}
 
         return {state: self.B[self.state_indices[s], i] for i, state in enumerate(self.absorbing_states)}
+
+    def calculate_mean_outcome_given_states(self, states: Iterable):
+        outcomes_given_states = defaultdict(list)
+        for s in states:
+            for absorbing_state, prob in self.calculate_outcome_given_state(s).items():
+                outcomes_given_states[absorbing_state] = prob
+        return {absorbing_state: np.mean(probs)
+                for absorbing_state, probs in outcomes_given_states.items()}
 
     def simulate_next(self, s):
         if s not in self.states:

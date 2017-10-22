@@ -1,34 +1,22 @@
-from markov_football.markov_football import generate_player_population, TeamLineup, TeamState, calculate_markov_chain, \
-    S, create_lineup_with_typical_abilities
+from markov_football.markov_football import *
 from pprint import pprint
 import numpy as np
 
 if __name__ == '__main__':
 
-    gpp = generate_player_population(22)
-
-    typical_lineup = create_lineup_with_typical_abilities(name='typical')
-
-    home_lineup = TeamLineup(name='home',
-                             goal_keeper=next(gpp),
-                             defenders=[next(gpp) for i in range(4)],
-                             midfielders=[next(gpp) for i in range(4)],
-                             forwards=[next(gpp) for i in range(2)])
-    away_lineup = TeamLineup(name='away',
-                             goal_keeper=next(generate_player_population()),
-                             defenders=[next(gpp) for i in range(4)],
-                             midfielders=[next(gpp) for i in range(4)],
-                             forwards=[next(gpp) for i in range(2)])
+    typical_lineup = create_lineup(name='typical', player_gen=generate_typical_player_population(n=11, typical=0.5))
+    home_lineup = create_lineup(name='home', player_gen=generate_random_player_population(n=11))
+    away_lineup = create_lineup(name='away', player_gen=generate_random_player_population(n=11))
 
     tmc = calculate_markov_chain(lineup1=home_lineup, lineup2=typical_lineup)
 
     mc = calculate_markov_chain(lineup1=home_lineup, lineup2=away_lineup)
 
-    initial_state = S('home', TeamState.M)
+    initial_state = S('home', TeamState.WITH_M)
     s = initial_state
 
-    print(tmc.calculate_outcome_given_state(S('home', TeamState.M)),
-          tmc.calculate_outcome_given_state(S('typical', TeamState.M)))
+    print(next_goal_probs(mc=tmc, lineup=home_lineup, reference_lineup=typical_lineup, team_states=[TeamState.WITH_M]))
+    print(next_goal_probs(mc=mc, lineup=home_lineup, reference_lineup=away_lineup, team_states=[TeamState.WITH_M]))
 
     home_score, away_score = 0, 0
 
@@ -37,10 +25,10 @@ if __name__ == '__main__':
 
         if next_s == S('home', TeamState.SCORED):
             home_score += 1
-            s = S('away', TeamState.M)
+            s = S('away', TeamState.WITH_M)
         elif next_s == S('away', TeamState.SCORED):
             away_score += 1
-            s = S('home', TeamState.M)
+            s = S('home', TeamState.WITH_M)
         else:
             s = next_s
 
