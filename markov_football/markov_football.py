@@ -7,7 +7,7 @@ from numpy import random
 import math
 from pprint import pprint
 
-goal_keeper_correction = 5.0
+goal_keeper_correction = 3.0
 
 
 class Position(Enum):
@@ -152,41 +152,65 @@ def _calculate_team_probs(lineup: TeamLineup, other_lineup: TeamLineup) -> List[
     od_tackling = other_lineup.total_ability(Ability.TACKLING, Position.D)
     ogk_tackling = other_lineup.total_ability(Ability.TACKLING, Position.GK)
 
+    m_shooting = lineup.total_ability(Ability.SHOOTING, Position.M)
     f_shooting = lineup.total_ability(Ability.SHOOTING, Position.F)
 
+    om_blocking = other_lineup.total_ability(Ability.BLOCKING, Position.M)
     od_blocking = other_lineup.total_ability(Ability.BLOCKING, Position.D)
     ogk_blocking = other_lineup.total_ability(Ability.BLOCKING, Position.GK)
 
     p_gk_d = logistic(gk_passing - of_intercepting)
     p_gk_m = logistic(gk_passing - om_intercepting)
+    p_gk_f = logistic(gk_passing - od_intercepting)
 
     p_d_d = logistic(d_passing + d_dribbling - of_tackling)
     p_d_m = logistic(d_passing + d_dribbling - of_tackling - om_intercepting)
 
     p_m_m = logistic(m_passing + m_dribbling - om_tackling)
     p_m_f = logistic(m_passing + m_dribbling - om_tackling - od_intercepting)
+    p_m_sc = logistic(m_shooting + m_dribbling - om_tackling - om_blocking - od_tackling - od_blocking - ogk_blocking)
 
     p_f_f = logistic(f_passing + f_dribbling - od_tackling)
-    p_f_sc = logistic(f_shooting + f_dribbling - od_tackling - ogk_tackling - od_blocking - ogk_blocking)
+    p_f_sc = logistic(f_shooting + f_dribbling - od_tackling - od_blocking - ogk_blocking)
 
     return [
+        # GK pass to D
         Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_D), p_gk_d),
         Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_F), 1.0 - p_gk_d),
+
+        # GK pass to M
         Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_M), p_gk_m),
         Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_M), 1.0 - p_gk_m),
 
-        Tx(S(name, TeamState.WITH_D), S(name, TeamState.WITH_D), p_d_d),
-        Tx(S(name, TeamState.WITH_D), S(other_name, TeamState.WITH_F), 1.0 - p_d_d),
+        # GK pass to F
+        Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_F), p_gk_f),
+        Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_D), 1.0 - p_gk_f),
+
+        # D pass to D
+        # Tx(S(name, TeamState.WITH_D), S(name, TeamState.WITH_D), p_d_d),
+        # Tx(S(name, TeamState.WITH_D), S(other_name, TeamState.WITH_F), 1.0 - p_d_d),
+
+        # D pass to M
         Tx(S(name, TeamState.WITH_D), S(name, TeamState.WITH_M), p_d_m),
         Tx(S(name, TeamState.WITH_D), S(other_name, TeamState.WITH_M), 1.0 - p_d_m),
 
-        Tx(S(name, TeamState.WITH_M), S(name, TeamState.WITH_M), p_m_m),
-        Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_M), 1.0 - p_m_m),
+        # M pass to M
+        # Tx(S(name, TeamState.WITH_M), S(name, TeamState.WITH_M), p_m_m),
+        # Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_M), 1.0 - p_m_m),
+
+        # M pass to F
         Tx(S(name, TeamState.WITH_M), S(name, TeamState.WITH_F), p_m_f),
         Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_D), 1.0 - p_m_f),
 
+        # M shoots
+        Tx(S(name, TeamState.WITH_M), S(name, TeamState.SCORED), p_m_sc),
+        Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_GK), 1.0 - p_m_sc),
+
+        # F pass to F
         Tx(S(name, TeamState.WITH_F), S(name, TeamState.WITH_F), p_f_f),
         Tx(S(name, TeamState.WITH_F), S(other_name, TeamState.WITH_D), 1.0 - p_f_f),
+
+        # F shoots
         Tx(S(name, TeamState.WITH_F), S(name, TeamState.SCORED), p_f_sc),
         Tx(S(name, TeamState.WITH_F), S(other_name, TeamState.WITH_GK), 1.0 - p_f_sc)
     ]

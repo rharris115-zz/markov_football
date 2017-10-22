@@ -24,6 +24,8 @@ if __name__ == '__main__':
     print(next_goal_probs(mc=mc))
     print(next_goal_probs(mc=smc))
 
+    exit()
+
     home_score, away_score = 0, 0
 
     for step in range(1000):
