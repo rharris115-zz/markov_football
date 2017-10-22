@@ -5,9 +5,9 @@ from enum import Enum, auto
 from collections import UserDict, defaultdict, OrderedDict
 from numpy import random
 import math
-import pprint
+from pprint import pprint
 
-goal_keeper_correction = 2.0
+goal_keeper_correction = 5.0
 
 
 class Position(Enum):
@@ -52,7 +52,7 @@ class Player(object):
         self.abilities = abilities
 
     def __repr__(self):
-        return '{name=%r, age=%d, native_abilities=%r}' % (
+        return '{name=%r, age=%d, abilities=%r}' % (
             self.name, self.age, self.abilities)
 
 
@@ -60,7 +60,7 @@ class TeamLineup(object):
     pass
 
 
-class TeamLineup(object):
+class TeamLineup(dict):
     def __init__(self, name: str, players: Dict[Player, Position] = {}):
 
         if len(players) > 11:
@@ -69,25 +69,32 @@ class TeamLineup(object):
         if len(list(filter(lambda item: item[1] is Position.GK, players.items()))) > 1:
             raise ValueError('Can only have zero or one Goal Keepers.')
 
+        super().__init__(players.items())
+
         self.name = name
-        self.players = OrderedDict(players)
 
     def total_ability(self, ability: Ability, position: Position) -> float:
         return sum(map(lambda item: item[0].abilities[ability]
         if item[1] is position
-        else 0.0, self.players.items()))
+        else 0.0, self.items())) * (goal_keeper_correction if position is Position.GK else 1.0)
 
     def with_addition(self, player: Player, position: Position) -> TeamLineup:
-        players = OrderedDict(list(self.players.items()) + [(player, position)])
+        players = OrderedDict(list(self.items()) + [(player, position)])
         return TeamLineup(name=self.name, players=players)
 
     def with_substitution(self, player: Player, substitute: Player) -> TeamLineup:
-        if player not in self.players:
+        if player not in self:
             raise ValueError("Cannot find player to be substituted. player=%s" % player)
-        position = self.players[player]
-        players = OrderedDict(self.players)
+        position = self[player]
+        players = dict(self)
         del players[player]
         players[substitute] = position
+        return TeamLineup(name=self.name, players=players)
+
+    def with_player_positions(self, player_positions: List[Tuple[Player, Position]]) -> TeamLineup:
+        players = dict(self)
+        for player, position in player_positions:
+            players[player] = position
         return TeamLineup(name=self.name, players=players)
 
 
@@ -199,40 +206,63 @@ def next_goal_probs(mc: MarkovChain,
          for name in names))
 
 
-def build_team(name: str, players: Iterable[Player], reference_lineup: TeamLineup):
-    lineup = TeamLineup(name=name)
-    for player in players:
-        lineup = propose_player_addition(player=player, original_lineup=lineup, reference_lineup=reference_lineup)
-        if len(lineup.players) == 11:
-            break
-    pprint.pprint(lineup.players)
-    return lineup
-
-
-def propose_player_addition(player: Player,
-                            original_lineup: TeamLineup,
-                            reference_lineup: TeamLineup,
-                            team_states: Iterable[TeamState] = [TeamState.WITH_M]) -> TeamLineup:
-    original_mc = calculate_markov_chain(lineup1=original_lineup, lineup2=reference_lineup)
-
-    scoring_state = S(original_lineup.name, TeamState.SCORED)
-
-    original_next_goal_prob = next_goal_probs(mc=original_mc, team_states=team_states)[scoring_state]
-
-    best_lineup, best_next_goal_prob = original_lineup, original_next_goal_prob
-
-    if len(original_lineup.players) < 11:
-
-        for position in Position:
+def optimise_player_positions(
+        original_lineup: TeamLineup,
+        reference_lineup: TeamLineup,
+        n_tries: int = 1000,
+        team_states: Iterable[TeamState] = [TeamState.WITH_M]) -> TeamLineup:
+    best_nex_goal_prob = evaluate_lineup(lineup=original_lineup, reference_lineup=reference_lineup,
+                                         team_states=team_states)
+    best_lineup = original_lineup
+    trials_without_imrovement = 0
+    while trials_without_imrovement < n_tries:
+        if random.choice(a=[True, False]):
+            player = random.choice(a=list(best_lineup.keys()))
+            old_position = best_lineup[player]
+            new_position = random.choice(a=[pos for pos in Position if pos is not old_position])
             try:
-                new_lineup = original_lineup.with_addition(player, position)
+                new_lineup = best_lineup.with_player_positions(player_positions=[(player, new_position)])
             except:
                 continue
-            new_mc = calculate_markov_chain(lineup1=new_lineup, lineup2=reference_lineup)
-            new_next_goal_prob = next_goal_probs(mc=new_mc, team_states=team_states)[scoring_state]
+        else:
+            player1, player2 = random.choice(a=list(best_lineup.keys()),
+                                             size=2,
+                                             replace=False)
+            position1, position2 = best_lineup[player1], best_lineup[player2]
+            if position1 is position2:
+                continue
+            try:
+                new_lineup = best_lineup.with_player_positions(
+                    player_positions=[(player1, position2), (player2, position1)])
+            except:
+                continue
 
-            if new_next_goal_prob > best_next_goal_prob:
-                best_next_goal_prob = new_next_goal_prob
-                best_lineup = new_lineup
+        new_next_goal_prob = evaluate_lineup(lineup=new_lineup,
+                                             reference_lineup=reference_lineup,
+                                             team_states=team_states)
+
+        if new_next_goal_prob > best_nex_goal_prob:
+            best_nex_goal_prob = new_next_goal_prob
+            best_lineup = new_lineup
+            trials_without_imrovement = 0
+
+            formation = defaultdict(set)
+            for player, position in best_lineup.items():
+                formation[position].add(player.name)
+
+            for position in Position:
+                print(position, formation[position])
+
+            print(best_nex_goal_prob)
+
+        trials_without_imrovement += 1
 
     return best_lineup
+
+
+def evaluate_lineup(
+        lineup: TeamLineup,
+        reference_lineup: TeamLineup,
+        team_states: Iterable[TeamState] = [TeamState.WITH_M]):
+    new_mc = calculate_markov_chain(lineup1=lineup, lineup2=reference_lineup)
+    return next_goal_probs(mc=new_mc, team_states=team_states)[S(lineup.name, TeamState.SCORED)]
