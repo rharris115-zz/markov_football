@@ -4,19 +4,22 @@ import numpy as np
 
 if __name__ == '__main__':
 
-    typical_lineup = create_lineup(name='typical', player_gen=generate_typical_player_population(n=11, typical=0.5))
-    home_lineup = create_lineup(name='home', player_gen=generate_random_player_population(n=11))
-    away_lineup = create_lineup(name='away', player_gen=generate_random_player_population(n=11))
+    typical_lineup = create_lineup(name='typical', players=generate_typical_player_population(n=11, typical=0.5))
+    home_lineup = create_lineup(name='home', players=generate_random_player_population(n=11))
+    away_lineup = create_lineup(name='away', players=generate_random_player_population(n=11))
+    select_lineup = build_team(name='select', players=generate_random_player_population(n=100),
+                               reference_lineup=typical_lineup)
 
     tmc = calculate_markov_chain(lineup1=home_lineup, lineup2=typical_lineup)
-
     mc = calculate_markov_chain(lineup1=home_lineup, lineup2=away_lineup)
+    smc = calculate_markov_chain(lineup1=select_lineup, lineup2=typical_lineup)
 
     initial_state = S('home', TeamState.WITH_M)
     s = initial_state
 
-    print(next_goal_probs(mc=tmc, lineup=home_lineup, reference_lineup=typical_lineup, team_states=[TeamState.WITH_M]))
-    print(next_goal_probs(mc=mc, lineup=home_lineup, reference_lineup=away_lineup, team_states=[TeamState.WITH_M]))
+    print(next_goal_probs(mc=tmc))
+    print(next_goal_probs(mc=mc))
+    print(next_goal_probs(mc=smc))
 
     home_score, away_score = 0, 0
 
