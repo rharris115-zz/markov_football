@@ -1,8 +1,8 @@
-from typing import Tuple, Dict, List, Iterable
+from typing import Tuple, Dict, List, Iterable, NamedTuple
 from .markov import MarkovChain, Tx
 from .name_generator import names_generator
 from enum import Enum, auto
-from collections import namedtuple, UserList, UserDict, defaultdict
+from collections import UserDict, defaultdict
 from numpy import random
 import math
 
@@ -17,7 +17,9 @@ class TeamState(Enum):
     SCORED = auto()
 
 
-S = namedtuple('S', ['team', 'team_state'])
+class S(NamedTuple):
+    team: str
+    team_state: TeamState
 
 
 class Ability(Enum):

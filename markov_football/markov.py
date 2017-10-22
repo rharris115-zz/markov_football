@@ -1,7 +1,6 @@
-from typing import List, Dict
+from typing import List
 from collections import namedtuple, OrderedDict, defaultdict
 import numpy as np
-from pprint import pprint
 
 Tx = namedtuple('Tx', ['s_from', 's_to', 'weight'])
 
@@ -59,13 +58,12 @@ class MarkovChain(object):
         if s in self.absorbing_states:
             return {s: 1.0}
 
-        row = self.B[self.state_indices[s]].tolist()[0]
-
-        return {state: prob for state, prob in zip(self.absorbing_states, row)}
+        return {state: self.B[self.state_indices[s], i] for i, state in enumerate(self.absorbing_states)}
 
     def simulate_next(self, s):
         if s not in self.states:
             raise ValueError('No such state. s=%r' % s)
-        tx_probs = self.transition_matrix[self.state_indices[s]].tolist()[0]
-        s_index = np.random.choice(len(self.states), p=tx_probs)
+        n = len(self.states)
+        tx_probs = [self.transition_matrix[self.state_indices[s], col] for col in range(n)]
+        s_index = np.random.choice(n, p=tx_probs)
         return self.states[s_index]
