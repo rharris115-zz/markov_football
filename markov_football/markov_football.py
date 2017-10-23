@@ -1,6 +1,6 @@
 from typing import Tuple, Dict, List, Iterable, NamedTuple, Generator
 from .markov import MarkovChain, Tx
-from .name_generator import NamesGenerator
+from .name import NamesGenerator
 from enum import Enum, auto
 from collections import UserDict, defaultdict, OrderedDict
 from numpy import random
@@ -72,6 +72,9 @@ class TeamLineup(dict):
         super().__init__(players.items())
 
         self.name = name
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(' + self.name + ': ' + super().__repr__() + ')'
 
     def total_ability(self, ability: Ability, position: Position) -> float:
         return sum(map(lambda item: item[0].abilities[ability]
@@ -222,7 +225,7 @@ def calculate_markov_chain(lineup1: TeamLineup, lineup2: TeamLineup) -> MarkovCh
 
 
 def next_goal_probs(mc: MarkovChain,
-                    team_states: Iterable[TeamState] = [TeamState.WITH_M]) -> Dict[S, float]:
+                    team_states: Iterable[TeamState]) -> Dict[S, float]:
     names = [name for name, ts in mc.absorbing_states]
     return mc.calculate_mean_outcome_given_states(
         (S(name, team_state)
@@ -232,61 +235,63 @@ def next_goal_probs(mc: MarkovChain,
 
 def optimise_player_positions(
         original_lineup: TeamLineup,
-        reference_lineup: TeamLineup,
-        n_tries: int = 1000,
-        team_states: Iterable[TeamState] = [TeamState.WITH_M]) -> TeamLineup:
-    best_nex_goal_prob = evaluate_lineup(lineup=original_lineup, reference_lineup=reference_lineup,
-                                         team_states=team_states)
+        reference_lineups: List[TeamLineup],
+        team_states: Iterable[TeamState],
+        max_trials_without_improvement: int = 1000) -> TeamLineup:
+    best_mean_next_goal_prob = evaluate_lineup(lineup=original_lineup, reference_lineups=reference_lineups,
+                                               team_states=team_states)
     best_lineup = original_lineup
     trials_without_imrovement = 0
-    while trials_without_imrovement < n_tries:
-        if random.choice(a=[True, False]):
-            player = random.choice(a=list(best_lineup.keys()))
-            old_position = best_lineup[player]
-            new_position = random.choice(a=[pos for pos in Position if pos is not old_position])
-            try:
-                new_lineup = best_lineup.with_player_positions(player_positions=[(player, new_position)])
-            except:
-                continue
-        else:
-            player1, player2 = random.choice(a=list(best_lineup.keys()),
-                                             size=2,
-                                             replace=False)
-            position1, position2 = best_lineup[player1], best_lineup[player2]
-            if position1 is position2:
-                continue
-            try:
-                new_lineup = best_lineup.with_player_positions(
-                    player_positions=[(player1, position2), (player2, position1)])
-            except:
-                continue
-
-        new_next_goal_prob = evaluate_lineup(lineup=new_lineup,
-                                             reference_lineup=reference_lineup,
-                                             team_states=team_states)
-
-        if new_next_goal_prob > best_nex_goal_prob:
-            best_nex_goal_prob = new_next_goal_prob
+    while trials_without_imrovement < max_trials_without_improvement:
+        new_mean_next_goal_prob, new_lineup = _experiment_with_positioning(lineup=best_lineup,
+                                                                           reference_lineups=reference_lineups,
+                                                                           team_states=team_states)
+        if not new_lineup:
+            continue
+        if new_mean_next_goal_prob > best_mean_next_goal_prob:
+            best_mean_next_goal_prob = new_mean_next_goal_prob
             best_lineup = new_lineup
             trials_without_imrovement = 0
-
-            formation = defaultdict(set)
-            for player, position in best_lineup.items():
-                formation[position].add(player.name)
-
-            for position in Position:
-                print(position, formation[position])
-
-            print(best_nex_goal_prob)
-
         trials_without_imrovement += 1
 
     return best_lineup
 
 
+def _experiment_with_positioning(lineup: TeamLineup,
+                                 reference_lineups: List[TeamLineup],
+                                 team_states: Iterable[TeamState]) -> Tuple[float, TeamLineup]:
+    if random.choice(a=[True, False]):
+        player = random.choice(a=list(lineup.keys()))
+        old_position = lineup[player]
+        new_position = random.choice(a=[pos for pos in Position if pos is not old_position])
+        try:
+            new_lineup = lineup.with_player_positions(player_positions=[(player, new_position)])
+        except:
+            return (0, None)
+    else:
+        player1, player2 = random.choice(a=list(lineup.keys()),
+                                         size=2,
+                                         replace=False)
+        position1, position2 = lineup[player1], lineup[player2]
+        if position1 is position2:
+            return (0, None)
+        try:
+            new_lineup = lineup.with_player_positions(
+                player_positions=[(player1, position2), (player2, position1)])
+        except:
+            return (0, None)
+
+    new_next_goal_prob = evaluate_lineup(lineup=new_lineup,
+                                         reference_lineups=reference_lineups,
+                                         team_states=team_states)
+    return new_next_goal_prob, new_lineup
+
+
 def evaluate_lineup(
         lineup: TeamLineup,
-        reference_lineup: TeamLineup,
-        team_states: Iterable[TeamState] = [TeamState.WITH_M]):
-    new_mc = calculate_markov_chain(lineup1=lineup, lineup2=reference_lineup)
-    return next_goal_probs(mc=new_mc, team_states=team_states)[S(lineup.name, TeamState.SCORED)]
+        reference_lineups: List[TeamLineup],
+        team_states: Iterable[TeamState]):
+    return sum([next_goal_probs(mc=calculate_markov_chain(lineup1=lineup,
+                                                          lineup2=reference_lineup),
+                                team_states=team_states)[S(lineup.name, TeamState.SCORED)]
+                for reference_lineup in reference_lineups]) / len(reference_lineups)
