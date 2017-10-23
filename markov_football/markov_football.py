@@ -3,9 +3,10 @@ from .markov import MarkovChain, Tx
 from .name import NamesGenerator
 from enum import Enum, auto
 from collections import UserDict, defaultdict, OrderedDict
-from numpy import random
+import numpy as np
 import math
 from pprint import pprint
+import pandas as pd
 
 goal_keeper_correction = 3.0
 
@@ -105,8 +106,8 @@ def generate_random_player_population(n: int = 1) -> Iterable[Player]:
     ng = NamesGenerator.names(n=n)
     for i in range(n):
         abilities = Abilities(
-            {ability: value for ability, value in zip(Ability, random.uniform(low=0.0, high=1.0,
-                                                                              size=len(Ability)))})
+            {ability: value for ability, value in zip(Ability, np.random.uniform(low=0.0, high=1.0,
+                                                                                 size=len(Ability)))})
         player = Player(name=next(ng), age=16, abilities=abilities)
         yield player
 
@@ -238,8 +239,8 @@ def optimise_player_positions(
         reference_lineups: List[TeamLineup],
         team_states: Iterable[TeamState],
         max_trials_without_improvement: int = 1000) -> TeamLineup:
-    best_mean_next_goal_prob = evaluate_lineup(lineup=original_lineup, reference_lineups=reference_lineups,
-                                               team_states=team_states)
+    best_mean_next_goal_prob = sum(evaluate_lineup(lineup=original_lineup, reference_lineups=reference_lineups,
+                                                   team_states=team_states)) / len(reference_lineups)
     best_lineup = original_lineup
     trials_without_imrovement = 0
     while trials_without_imrovement < max_trials_without_improvement:
@@ -260,18 +261,18 @@ def optimise_player_positions(
 def _experiment_with_positioning(lineup: TeamLineup,
                                  reference_lineups: List[TeamLineup],
                                  team_states: Iterable[TeamState]) -> Tuple[float, TeamLineup]:
-    if random.choice(a=[True, False]):
-        player = random.choice(a=list(lineup.keys()))
+    if np.random.choice(a=[True, False]):
+        player = np.random.choice(a=list(lineup.keys()))
         old_position = lineup[player]
-        new_position = random.choice(a=[pos for pos in Position if pos is not old_position])
+        new_position = np.random.choice(a=[pos for pos in Position if pos is not old_position])
         try:
             new_lineup = lineup.with_player_positions(player_positions=[(player, new_position)])
         except:
             return (0, None)
     else:
-        player1, player2 = random.choice(a=list(lineup.keys()),
-                                         size=2,
-                                         replace=False)
+        player1, player2 = np.random.choice(a=list(lineup.keys()),
+                                            size=2,
+                                            replace=False)
         position1, position2 = lineup[player1], lineup[player2]
         if position1 is position2:
             return (0, None)
@@ -281,17 +282,32 @@ def _experiment_with_positioning(lineup: TeamLineup,
         except:
             return (0, None)
 
-    new_next_goal_prob = evaluate_lineup(lineup=new_lineup,
-                                         reference_lineups=reference_lineups,
-                                         team_states=team_states)
+    new_next_goal_prob = sum(evaluate_lineup(lineup=new_lineup,
+                                             reference_lineups=reference_lineups,
+                                             team_states=team_states)) / len(reference_lineups)
     return new_next_goal_prob, new_lineup
 
 
 def evaluate_lineup(
         lineup: TeamLineup,
         reference_lineups: List[TeamLineup],
-        team_states: Iterable[TeamState]):
-    return sum([next_goal_probs(mc=calculate_markov_chain(lineup1=lineup,
-                                                          lineup2=reference_lineup),
-                                team_states=team_states)[S(lineup.name, TeamState.SCORED)]
-                for reference_lineup in reference_lineups]) / len(reference_lineups)
+        team_states: Iterable[TeamState]) -> Iterable[float]:
+    for reference_lineup in reference_lineups:
+        next_goal_prob = 0.5 if reference_lineup is lineup else \
+            next_goal_probs(mc=calculate_markov_chain(lineup1=lineup,
+                                                      lineup2=reference_lineup),
+                            team_states=team_states)[S(lineup.name, TeamState.SCORED)]
+        yield next_goal_prob
+
+
+def create_next_goal_matrix(lineups: List[TeamLineup], team_states: Iterable[TeamState]) -> pd.DataFrame:
+    names = [lineup.name for lineup in lineups]
+    n = len(lineups)
+    A = np.zeros(shape=(n, n))
+    for row_index, lineup in enumerate(lineups):
+        for col_index, next_goal_prob in enumerate(evaluate_lineup(lineup=lineup,
+                                                                   reference_lineups=lineups,
+                                                                   team_states=team_states)):
+            A[row_index, col_index] = next_goal_prob
+    frame = pd.DataFrame(data=pd.DataFrame(A, index=names, columns=names))
+    return frame

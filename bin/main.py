@@ -13,6 +13,7 @@ if __name__ == '__main__':
 
     for league, lineups in lineups_by_league.items():
         print(league)
+        print(create_next_goal_matrix(lineups, team_states=[TeamState.WITH_M]))
         new_lineups = [optimise_player_positions(original_lineup=lineup,
                                                  reference_lineups=[other_lineup
                                                                     for other_lineup in lineups
