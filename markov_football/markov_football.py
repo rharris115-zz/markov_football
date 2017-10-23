@@ -305,9 +305,8 @@ def create_next_goal_matrix(lineups: List[TeamLineup], team_states: Iterable[Tea
     n = len(lineups)
     A = np.zeros(shape=(n, n))
     for row_index, lineup in enumerate(lineups):
-        for col_index, next_goal_prob in enumerate(evaluate_lineup(lineup=lineup,
-                                                                   reference_lineups=lineups,
-                                                                   team_states=team_states)):
-            A[row_index, col_index] = next_goal_prob
+        A[row_index, :] = list(evaluate_lineup(lineup=lineup,
+                                               reference_lineups=lineups,
+                                               team_states=team_states))
     frame = pd.DataFrame(data=pd.DataFrame(A, index=names, columns=names))
     return frame
