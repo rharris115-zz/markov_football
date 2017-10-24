@@ -240,6 +240,42 @@ def next_goal_probs(mc: MarkovChain,
          for name in names))
 
 
+def optmise_player_positions_in_parrallel(
+        lineups_by_name: Dict[str, TeamLineup],
+        team_states: Iterable[TeamState],
+        max_cycles_without_improvement: int = 100) -> Dict[str, TeamLineup]:
+    names = list(lineups_by_name.keys())
+
+    local_lineups_by_name = dict(lineups_by_name)
+
+    cycles_without_improvement = 0
+
+    while cycles_without_improvement < max_cycles_without_improvement:
+
+        for name in names:
+            lineup = local_lineups_by_name[name]
+
+            next_goal_p = sum(
+                evaluate_lineup(lineup=lineup,
+                                reference_lineups=local_lineups_by_name.values(),
+                                team_states=team_states)) / len(local_lineups_by_name)
+
+            trial_next_goal_p, trial_lineup, description = _experiment_with_positioning(lineup=lineup,
+                                                                                        reference_lineups=local_lineups_by_name.values(),
+                                                                                        team_states=team_states)
+
+            if not trial_lineup:
+                continue
+            elif trial_next_goal_p > next_goal_p:
+                local_lineups_by_name[name] = trial_lineup
+                print('Change by %s: %s' % (name, description))
+                cycles_without_improvement = 0
+        print('cycles_without_improvement %d\n' % cycles_without_improvement)
+        cycles_without_improvement += 1
+
+    return local_lineups_by_name
+
+
 def optimise_player_positions(
         original_lineup: TeamLineup,
         reference_lineups: List[TeamLineup],
@@ -250,9 +286,9 @@ def optimise_player_positions(
     best_lineup = original_lineup
     trials_without_imrovement = 0
     while trials_without_imrovement < max_trials_without_improvement:
-        new_mean_next_goal_prob, new_lineup = _experiment_with_positioning(lineup=best_lineup,
-                                                                           reference_lineups=reference_lineups,
-                                                                           team_states=team_states)
+        new_mean_next_goal_prob, new_lineup, description = _experiment_with_positioning(lineup=best_lineup,
+                                                                                        reference_lineups=reference_lineups,
+                                                                                        team_states=team_states)
         if not new_lineup:
             continue
         if new_mean_next_goal_prob > best_mean_next_goal_prob:
@@ -266,37 +302,39 @@ def optimise_player_positions(
 
 def _experiment_with_positioning(lineup: TeamLineup,
                                  reference_lineups: List[TeamLineup],
-                                 team_states: Iterable[TeamState]) -> Tuple[float, TeamLineup]:
+                                 team_states: Iterable[TeamState]) -> Tuple[float, TeamLineup, str]:
     if np.random.choice(a=[True, False]):
         player = np.random.choice(a=list(lineup.keys()))
         old_position = lineup[player]
         new_position = np.random.choice(a=[pos for pos in Position if pos is not old_position])
+        description = 'Move %s from %s to %s.' % (str(player.name), old_position, new_position)
         try:
             new_lineup = lineup.with_player_positions(player_positions=[(player, new_position)])
         except:
-            return (0, None)
+            return (0, None, description)
     else:
         player1, player2 = np.random.choice(a=list(lineup.keys()),
                                             size=2,
                                             replace=False)
         position1, position2 = lineup[player1], lineup[player2]
+        description = 'Swap %s in %s for %s in %s.' % (str(player1.name), position1, str(player2.name), position2)
         if position1 is position2:
-            return (0, None)
+            return (0, None, description)
         try:
             new_lineup = lineup.with_player_positions(
                 player_positions=[(player1, position2), (player2, position1)])
         except:
-            return (0, None)
+            return (0, None, description)
 
     new_next_goal_prob = sum(evaluate_lineup(lineup=new_lineup,
                                              reference_lineups=reference_lineups,
                                              team_states=team_states)) / len(reference_lineups)
-    return new_next_goal_prob, new_lineup
+    return new_next_goal_prob, new_lineup, description
 
 
 def evaluate_lineup(
         lineup: TeamLineup,
-        reference_lineups: List[TeamLineup],
+        reference_lineups: Iterable[TeamLineup],
         team_states: Iterable[TeamState]) -> Iterable[float]:
     for reference_lineup in reference_lineups:
         next_goal_prob = 0.5 if reference_lineup.name is lineup.name else \

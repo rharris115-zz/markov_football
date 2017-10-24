@@ -7,6 +7,8 @@ def display_league(lineups_by_name: Dict[str, List[TeamLineup]]):
     table = create_next_goal_matrix(lineups_by_name.values(), team_states=[TeamState.WITH_M])
     mean_table = table.loc[:, 'mean']
     print(mean_table)
+    print()
+
     top_lineup_name = mean_table.index[0]
     print(top_lineup_name)
     for position, players in lineups_by_name[top_lineup_name].formation().items():
@@ -28,13 +30,12 @@ if __name__ == '__main__':
         display_league(lineups_by_name=lineups_by_name)
 
         for optimisation in range(1, 100):
-            new_lineups = {name: optimise_player_positions(original_lineup=lineup,
-                                                           reference_lineups=lineups_by_name.values(),
-                                                           team_states=[TeamState.WITH_M],
-                                                           max_trials_without_improvement=3)
-                           for name, lineup in lineups_by_name.items()}
+            new_lineups_by_name = optmise_player_positions_in_parrallel(lineups_by_name=lineups_by_name,
+                                                                        team_states=[TeamState.WITH_M],
+                                                                        max_cycles_without_improvement=10)
+
             lineups_by_name.clear()
-            lineups_by_name.update(new_lineups)
+            lineups_by_name.update(new_lineups_by_name)
 
             display_league(lineups_by_name=lineups_by_name)
 
