@@ -309,4 +309,12 @@ def create_next_goal_matrix(lineups: List[TeamLineup], team_states: Iterable[Tea
                                                reference_lineups=lineups,
                                                team_states=team_states))
     frame = pd.DataFrame(data=pd.DataFrame(A, index=names, columns=names))
+    frame['mean'] = frame.mean(axis=1)
+
+    frame.sort_values(['mean'], inplace=True, ascending=False)
+
+    cols = frame.columns.tolist()
+    cols = cols[-1:] + cols[:-1]
+    frame = frame[cols]
+
     return frame
