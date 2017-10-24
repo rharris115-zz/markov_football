@@ -86,6 +86,12 @@ class TeamLineup(dict):
         players = OrderedDict(list(self.items()) + [(player, position)])
         return TeamLineup(name=self.name, players=players)
 
+    def formation(self) -> Dict[Position, List[Player]]:
+        f = defaultdict(list)
+        for player, position in self.items():
+            f[position].append(player)
+        return OrderedDict(((position, f[position]) for position in Position))
+
     def with_substitution(self, player: Player, substitute: Player) -> TeamLineup:
         if player not in self:
             raise ValueError("Cannot find player to be substituted. player=%s" % player)
@@ -293,7 +299,7 @@ def evaluate_lineup(
         reference_lineups: List[TeamLineup],
         team_states: Iterable[TeamState]) -> Iterable[float]:
     for reference_lineup in reference_lineups:
-        next_goal_prob = 0.5 if reference_lineup is lineup else \
+        next_goal_prob = 0.5 if reference_lineup.name is lineup.name else \
             next_goal_probs(mc=calculate_markov_chain(lineup1=lineup,
                                                       lineup2=reference_lineup),
                             team_states=team_states)[S(lineup.name, TeamState.SCORED)]
