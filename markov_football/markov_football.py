@@ -270,7 +270,7 @@ def optmise_player_positions_in_parrallel(
                 local_lineups_by_name[name] = trial_lineup
                 print('Change by %s: %s' % (name, description))
                 cycles_without_improvement = 0
-        print('cycles_without_improvement %d\n' % cycles_without_improvement)
+        print('cycles_without_improvement %d' % cycles_without_improvement)
         cycles_without_improvement += 1
 
     return local_lineups_by_name
