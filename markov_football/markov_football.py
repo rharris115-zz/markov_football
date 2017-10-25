@@ -5,8 +5,12 @@ from enum import Enum, auto
 from collections import UserDict, defaultdict, OrderedDict
 import numpy as np
 import math
-from pprint import pprint
 import pandas as pd
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 goal_keeper_correction = 3.0
 
@@ -273,9 +277,9 @@ def optmise_player_positions_in_parrallel(
                 continue
             elif trial_next_goal_p > next_goal_p:
                 local_lineups_by_name[name] = trial_lineup
-                print('Change by %s: %s' % (name, description))
+                logger.info('Change by %s: %s' % (name, description))
                 cycles_without_improvement = 0
-        print('cycles_without_improvement %d' % cycles_without_improvement)
+        logger.info('cycles_without_improvement %d' % cycles_without_improvement)
         cycles_without_improvement += 1
 
     return local_lineups_by_name
