@@ -5,14 +5,24 @@ from markov_football.name import football_clubs_by_league
 
 def display_league(lineups_by_name: Dict[str, List[TeamLineup]]):
     table = create_next_goal_matrix(lineups_by_name.values(), team_states=[TeamState.WITH_M])
-    mean_table = table.loc[:, 'mean']
-    print(mean_table)
-    print()
+    mean_table = table.loc[:, ['mean']]
 
-    top_lineup_name = mean_table.index[0]
-    print(top_lineup_name)
-    for position, players in lineups_by_name[top_lineup_name].formation().items():
-        print('%s: %s' % (position, ','.join(map(str, map(lambda p: p.name, players)))))
+    player_counts_by_position_list = [
+        {position: len(players)
+         for position, players in lineups_by_name[lineup_name].formation().items()}
+        for lineup_name in mean_table.index
+    ]
+
+    for position in Position:
+        # d = {str(position): [player_counts_by_position[position]
+        #                      for player_counts_by_position in
+        #                      player_counts_by_position_list]}
+
+        mean_table[position.name] = pd.Series([player_counts_by_position[position]
+                                               for player_counts_by_position in
+                                               player_counts_by_position_list], index=mean_table.index)
+
+    print(mean_table)
     print()
 
 
@@ -29,7 +39,7 @@ if __name__ == '__main__':
         print('%s: Initial player allocation' % league)
         display_league(lineups_by_name=lineups_by_name)
 
-        for optimisation in range(1, 100):
+        for optimisation in range(1, 10):
             new_lineups_by_name = optmise_player_positions_in_parrallel(lineups_by_name=lineups_by_name,
                                                                         team_states=[TeamState.WITH_M],
                                                                         max_cycles_without_improvement=10)

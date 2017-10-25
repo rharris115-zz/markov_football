@@ -64,6 +64,9 @@ class TeamLineup(object):
 class TeamLineup(dict):
     def __init__(self, name: str, players: Dict[Player, Position] = {}):
 
+        if not name:
+            raise ValueError('Need a name.')
+
         if len(players) > 11:
             raise ValueError('Too many players! len(players)=%d' % len(players))
 
@@ -78,9 +81,10 @@ class TeamLineup(dict):
         return self.__class__.__name__ + '(' + self.name + ': ' + super().__repr__() + ')'
 
     def total_ability(self, ability: Ability, position: Position) -> float:
-        return sum(map(lambda item: item[0].abilities[ability]
-        if item[1] is position
-        else 0.0, self.items())) * (goal_keeper_correction if position is Position.GK else 1.0)
+        players_at_position = {player: position for player, play_position in self.items() if play_position is position}
+        return math.sqrt(sum(map(lambda item: item[0].abilities[ability],
+                                 players_at_position.items())) * (
+                             goal_keeper_correction if position is Position.GK else 1.0))
 
     def with_addition(self, player: Player, position: Position) -> TeamLineup:
         players = OrderedDict(list(self.items()) + [(player, position)])
@@ -110,10 +114,11 @@ class TeamLineup(dict):
 
 def generate_random_player_population(n: int = 1) -> Iterable[Player]:
     ng = NamesGenerator.names(n=n)
+    multiplier = np.random.uniform(0.0, 2.0)
     for i in range(n):
         abilities = Abilities(
-            {ability: value for ability, value in zip(Ability, np.random.uniform(low=0.0, high=1.0,
-                                                                                 size=len(Ability)))})
+            {ability: multiplier * value for ability, value in zip(Ability, np.random.uniform(low=0.0, high=1.0,
+                                                                                              size=len(Ability)))})
         player = Player(name=next(ng), age=16, abilities=abilities)
         yield player
 
@@ -189,12 +194,12 @@ def _calculate_team_probs(lineup: TeamLineup, other_lineup: TeamLineup) -> List[
         Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_F), 1.0 - p_gk_d),
 
         # GK pass to M
-        Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_M), p_gk_m),
-        Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_M), 1.0 - p_gk_m),
+        # Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_M), p_gk_m),
+        # Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_M), 1.0 - p_gk_m),
 
         # GK pass to F
-        Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_F), p_gk_f),
-        Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_D), 1.0 - p_gk_f),
+        # Tx(S(name, TeamState.WITH_GK), S(name, TeamState.WITH_F), p_gk_f),
+        # Tx(S(name, TeamState.WITH_GK), S(other_name, TeamState.WITH_D), 1.0 - p_gk_f),
 
         # D pass to D
         # Tx(S(name, TeamState.WITH_D), S(name, TeamState.WITH_D), p_d_d),
@@ -213,12 +218,12 @@ def _calculate_team_probs(lineup: TeamLineup, other_lineup: TeamLineup) -> List[
         Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_D), 1.0 - p_m_f),
 
         # M shoots
-        Tx(S(name, TeamState.WITH_M), S(name, TeamState.SCORED), p_m_sc),
-        Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_GK), 1.0 - p_m_sc),
+        # Tx(S(name, TeamState.WITH_M), S(name, TeamState.SCORED), p_m_sc),
+        # Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_GK), 1.0 - p_m_sc),
 
         # F pass to F
-        Tx(S(name, TeamState.WITH_F), S(name, TeamState.WITH_F), p_f_f),
-        Tx(S(name, TeamState.WITH_F), S(other_name, TeamState.WITH_D), 1.0 - p_f_f),
+        # Tx(S(name, TeamState.WITH_F), S(name, TeamState.WITH_F), p_f_f),
+        # Tx(S(name, TeamState.WITH_F), S(other_name, TeamState.WITH_D), 1.0 - p_f_f),
 
         # F shoots
         Tx(S(name, TeamState.WITH_F), S(name, TeamState.SCORED), p_f_sc),
@@ -276,30 +281,6 @@ def optmise_player_positions_in_parrallel(
     return local_lineups_by_name
 
 
-def optimise_player_positions(
-        original_lineup: TeamLineup,
-        reference_lineups: List[TeamLineup],
-        team_states: Iterable[TeamState],
-        max_trials_without_improvement: int = 1000) -> TeamLineup:
-    best_mean_next_goal_prob = sum(evaluate_lineup(lineup=original_lineup, reference_lineups=reference_lineups,
-                                                   team_states=team_states)) / len(reference_lineups)
-    best_lineup = original_lineup
-    trials_without_imrovement = 0
-    while trials_without_imrovement < max_trials_without_improvement:
-        new_mean_next_goal_prob, new_lineup, description = _experiment_with_positioning(lineup=best_lineup,
-                                                                                        reference_lineups=reference_lineups,
-                                                                                        team_states=team_states)
-        if not new_lineup:
-            continue
-        if new_mean_next_goal_prob > best_mean_next_goal_prob:
-            best_mean_next_goal_prob = new_mean_next_goal_prob
-            best_lineup = new_lineup
-            trials_without_imrovement = 0
-        trials_without_imrovement += 1
-
-    return best_lineup
-
-
 def _experiment_with_positioning(lineup: TeamLineup,
                                  reference_lineups: List[TeamLineup],
                                  team_states: Iterable[TeamState]) -> Tuple[float, TeamLineup, str]:
@@ -307,7 +288,7 @@ def _experiment_with_positioning(lineup: TeamLineup,
         player = np.random.choice(a=list(lineup.keys()))
         old_position = lineup[player]
         new_position = np.random.choice(a=[pos for pos in Position if pos is not old_position])
-        description = 'Move %s from %s to %s.' % (str(player.name), old_position, new_position)
+        description = 'Move %s from %s to %s.' % (str(player.name), old_position.name, new_position.name)
         try:
             new_lineup = lineup.with_player_positions(player_positions=[(player, new_position)])
         except:
@@ -317,7 +298,8 @@ def _experiment_with_positioning(lineup: TeamLineup,
                                             size=2,
                                             replace=False)
         position1, position2 = lineup[player1], lineup[player2]
-        description = 'Swap %s in %s for %s in %s.' % (str(player1.name), position1, str(player2.name), position2)
+        description = 'Swap %s in %s for %s in %s.' % (
+            str(player1.name), position1.name, str(player2.name), position2.name)
         if position1 is position2:
             return (0, None, description)
         try:
