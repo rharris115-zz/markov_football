@@ -31,7 +31,7 @@ if __name__ == '__main__':
     clubs_by_league = football_clubs_by_league()
 
     lineups_by_league = OrderedDict(
-        ((league, {club: create_lineup(name=club, players=generate_random_player_population(n=11))
+        ((league, {club: create_lineup(name=club, players=generate_random_player_population(n=17))
                    for club in clubs})
          for league, clubs in clubs_by_league.items()))
 
@@ -47,6 +47,7 @@ if __name__ == '__main__':
             lineups_by_name.clear()
             lineups_by_name.update(new_lineups_by_name)
 
+            print('%s: optimasation %d' % (league, optimisation))
             display_league(lineups_by_name=lineups_by_name)
 
             # for step in range(1000):

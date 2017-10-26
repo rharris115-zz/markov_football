@@ -2,7 +2,7 @@ from typing import Tuple, Dict, List, Iterable, NamedTuple, Generator
 from .markov import MarkovChain, Tx
 from .name import NamesGenerator
 from enum import Enum, auto
-from collections import UserDict, defaultdict, OrderedDict
+from collections import UserDict, defaultdict, OrderedDict, Counter
 import numpy as np
 import math
 import pandas as pd
@@ -16,10 +16,14 @@ goal_keeper_correction = 3.0
 
 
 class Position(Enum):
+    B = auto()
     GK = auto()
     D = auto()
     M = auto()
     F = auto()
+
+
+outfield_positions = frozenset((Position.D, Position.M, Position.F))
 
 
 class TeamState(Enum):
@@ -66,18 +70,25 @@ class TeamLineup(object):
 
 
 class TeamLineup(dict):
-    def __init__(self, name: str, players: Dict[Player, Position] = {}):
+    def __init__(self, name: str, players: Iterable[Tuple[Player, Position]] = ()):
 
         if not name:
             raise ValueError('Need a name.')
 
-        if len(players) > 11:
-            raise ValueError('Too many players! len(players)=%d' % len(players))
+        position_counter = Counter(position for player, position in players)
 
-        if len(list(filter(lambda item: item[1] is Position.GK, players.items()))) > 1:
-            raise ValueError('Can only have zero or one Goal Keepers.')
+        outfield_count = sum(position_counter[position]
+                             for position in outfield_positions)
 
-        super().__init__(players.items())
+        if outfield_count > 10:
+            raise ValueError('Cannot have more than %d in positions %s.' % (10, ','.join(position.name
+                                                                                         for position in
+                                                                                         outfield_positions)))
+
+        if position_counter[Position.GK] > 1:
+            raise ValueError('Cannot have more than %d in position %s.' % (1, Position.GK.name))
+
+        super().__init__(players)
 
         self.name = name
 
@@ -90,15 +101,15 @@ class TeamLineup(dict):
                                  players_at_position.items())) * (
                              goal_keeper_correction if position is Position.GK else 1.0))
 
-    def with_addition(self, player: Player, position: Position) -> TeamLineup:
-        players = OrderedDict(list(self.items()) + [(player, position)])
-        return TeamLineup(name=self.name, players=players)
-
     def formation(self) -> Dict[Position, List[Player]]:
         f = defaultdict(list)
         for player, position in self.items():
             f[position].append(player)
         return OrderedDict(((position, f[position]) for position in Position))
+
+    def with_addition(self, player: Player, position: Position) -> TeamLineup:
+        players = list(self.items() + [(player, position)])
+        return TeamLineup(name=self.name, players=players)
 
     def with_substitution(self, player: Player, substitute: Player) -> TeamLineup:
         if player not in self:
@@ -107,13 +118,16 @@ class TeamLineup(dict):
         players = dict(self)
         del players[player]
         players[substitute] = position
-        return TeamLineup(name=self.name, players=players)
+        return TeamLineup(name=self.name, players=players.items())
 
     def with_player_positions(self, player_positions: List[Tuple[Player, Position]]) -> TeamLineup:
         players = dict(self)
         for player, position in player_positions:
+            if player not in players:
+                raise ValueError("Cannot find player to play in position %s. player=%s" % (player, position))
+
             players[player] = position
-        return TeamLineup(name=self.name, players=players)
+        return TeamLineup(name=self.name, players=players.items())
 
 
 def generate_random_player_population(n: int = 1) -> Iterable[Player]:
@@ -138,10 +152,11 @@ def generate_typical_player_population(n: int = 1, typical: float = 0.5) -> Iter
 
 def create_lineup(name: str, players: Iterable[Player]) -> TeamLineup:
     return TeamLineup(name=name,
-                      players=OrderedDict([(next(players), Position.GK)] +
-                                          [(next(players), Position.D) for i in range(4)] +
-                                          [(next(players), Position.M) for i in range(4)] +
-                                          [(next(players), Position.F) for i in range(2)]))
+                      players=[(next(players), Position.B) for i in range(6)] +
+                              [(next(players), Position.GK)] +
+                              [(next(players), Position.D) for i in range(4)] +
+                              [(next(players), Position.M) for i in range(4)] +
+                              [(next(players), Position.F) for i in range(2)])
 
 
 def logistic(x: float) -> float:
