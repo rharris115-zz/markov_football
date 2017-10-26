@@ -65,7 +65,7 @@ class MarkovChain(object):
         outcomes_given_states = defaultdict(list)
         for s in states:
             for absorbing_state, prob in self.calculate_outcome_given_state(s).items():
-                outcomes_given_states[absorbing_state] = prob
+                outcomes_given_states[absorbing_state].append(prob)
         return {absorbing_state: np.mean(probs)
                 for absorbing_state, probs in outcomes_given_states.items()}
 

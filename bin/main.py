@@ -15,16 +15,11 @@ def display_league(lineups_by_name: Dict[str, List[Selection]]):
     ]
 
     for position in Position:
-        # d = {str(position): [player_counts_by_position[position]
-        #                      for player_counts_by_position in
-        #                      player_counts_by_position_list]}
-
         mean_table[position.name] = pd.Series([player_counts_by_position[position]
                                                for player_counts_by_position in
                                                player_counts_by_position_list], index=mean_table.index)
 
     print(mean_table)
-    print()
 
 
 if __name__ == '__main__':
@@ -36,31 +31,50 @@ if __name__ == '__main__':
                    for club in clubs})
          for league, clubs in clubs_by_league.items()))
 
-    for league, lineups_by_name in lineups_by_league.items():
-        print('%s: Initial player allocation' % league)
-        display_league(lineups_by_name=lineups_by_name)
+    for league, selections_by_name in lineups_by_league.items():
+        # new_selections = list(optmise_player_positions_in_parrallel(selections=selections_by_name.values(),
+        #                                                             team_states=[TeamState.WITH_M],
+        #                                                             max_cycles_without_improvement=25))
+        # selections_by_name.clear()
+        # selections_by_name.update({selection.name for selection in new_selections})
 
-        for optimisation in range(1, 10):
-            new_lineups_by_name = optmise_player_positions_in_parrallel(selections_by_name=lineups_by_name,
-                                                                        team_states=[TeamState.WITH_M],
-                                                                        max_cycles_without_improvement=10)
+        for week, fixtures_this_week in enumerate(fixtures(selections_by_name.keys())):
+            for club_1, club_2 in fixtures_this_week:
+                print('Week %d: %s vs. %s' % (week, club_1, club_2))
 
-            lineups_by_name.clear()
-            lineups_by_name.update(new_lineups_by_name)
+                selection_1 = selections_by_name[club_1]
+                selection_2 = selections_by_name[club_2]
 
-            print('%s: optimasation %d' % (league, optimisation))
-            display_league(lineups_by_name=lineups_by_name)
+                selection_1, selection_2 = optmise_player_positions_in_parrallel(
+                    selections=(selection_1, selection_2),
+                    team_states=[TeamState.WITH_M])
 
-            # for step in range(1000):
-            #     next_s = mc.simulate_next(s)
-            #
-            #     if next_s == S('home', TeamState.SCORED):
-            #         home_score += 1
-            #         s = S('away', TeamState.WITH_M)
-            #     elif next_s == S('away', TeamState.SCORED):
-            #         away_score += 1
-            #         s = S('home', TeamState.WITH_M)
-            #     else:
-            #         s = next_s
-            #
-            #     print(step, home_score, away_score, s)
+                selections_by_name[club_1] = selection_1
+                selections_by_name[club_2] = selection_2
+
+                display_league(lineups_by_name={club_1: selection_1,
+                                                club_2: selection_2})
+
+                mc = calculate_markov_chain(selection_1=selection_1, selection_2=selection_2)
+
+                score_keeper = Counter()
+                s = S(club_1, TeamState.WITH_M)
+                for step in range(100):
+                    next_s = mc.simulate_next(s)
+
+                    if next_s == S(club_1, TeamState.SCORED):
+                        score_keeper.update([club_1])
+                        s = S(club_2, TeamState.WITH_M)
+                    elif next_s == S(club_2, TeamState.SCORED):
+                        score_keeper.update([club_2])
+                        s = S(club_1, TeamState.WITH_M)
+                    else:
+                        s = next_s
+
+                print()
+                print('%s: %d\t%s: %d' % (club_1, score_keeper[club_1], club_2, score_keeper[club_2]))
+                print()
+                print()
+            print()
+            print()
+            print()

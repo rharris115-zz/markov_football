@@ -9,7 +9,7 @@ import pandas as pd
 import logging
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARN)
 logger.addHandler(logging.StreamHandler())
 
 goal_keeper_correction = 3.0
@@ -229,7 +229,6 @@ def calculate_markov_chain(selection_1: Selection, selection_2: Selection) -> Ma
 def next_goal_probs(mc: MarkovChain,
                     team_states: Iterable[TeamState]) -> Dict[S, float]:
     names = [name for name, ts in mc.absorbing_states]
-    return mc.calculate_mean_outcome_given_states(
-        (S(name, team_state)
-         for team_state in team_states
-         for name in names))
+    return mc.calculate_mean_outcome_given_states(states=(S(name, team_state)
+                                                          for team_state in team_states
+                                                          for name in names))
