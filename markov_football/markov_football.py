@@ -65,11 +65,11 @@ class Player(object):
             self.name, self.age, self.abilities)
 
 
-class TeamLineup(object):
+class Selection(object):
     pass
 
 
-class TeamLineup(dict):
+class Selection(dict):
     def __init__(self, name: str, players: Iterable[Tuple[Player, Position]] = ()):
 
         if not name:
@@ -107,91 +107,62 @@ class TeamLineup(dict):
             f[position].append(player)
         return OrderedDict(((position, f[position]) for position in Position))
 
-    def with_addition(self, player: Player, position: Position) -> TeamLineup:
+    def with_addition(self, player: Player, position: Position) -> Selection:
         players = list(self.items() + [(player, position)])
-        return TeamLineup(name=self.name, players=players)
+        return Selection(name=self.name, players=players)
 
-    def with_substitution(self, player: Player, substitute: Player) -> TeamLineup:
+    def with_substitution(self, player: Player, substitute: Player) -> Selection:
         if player not in self:
             raise ValueError("Cannot find player to be substituted. player=%s" % player)
         position = self[player]
         players = dict(self)
         del players[player]
         players[substitute] = position
-        return TeamLineup(name=self.name, players=players.items())
+        return Selection(name=self.name, players=players.items())
 
-    def with_player_positions(self, player_positions: List[Tuple[Player, Position]]) -> TeamLineup:
+    def with_player_positions(self, player_positions: List[Tuple[Player, Position]]) -> Selection:
         players = dict(self)
         for player, position in player_positions:
             if player not in players:
                 raise ValueError("Cannot find player to play in position %s. player=%s" % (player, position))
 
             players[player] = position
-        return TeamLineup(name=self.name, players=players.items())
-
-
-def generate_random_player_population(n: int = 1) -> Iterable[Player]:
-    ng = NamesGenerator.names(n=n)
-    multiplier = np.random.uniform(0.0, 2.0)
-    for i in range(n):
-        abilities = Abilities(
-            {ability: multiplier * value for ability, value in zip(Ability, np.random.uniform(low=0.0, high=1.0,
-                                                                                              size=len(Ability)))})
-        player = Player(name=next(ng), age=16, abilities=abilities)
-        yield player
-
-
-def generate_typical_player_population(n: int = 1, typical: float = 0.5) -> Iterable[Player]:
-    ng = NamesGenerator.names(n=n)
-    for i in range(n):
-        abilities = Abilities(
-            {ability: typical for ability in Ability})
-        player = Player(name=next(ng), age=16, abilities=abilities)
-        yield player
-
-
-def create_lineup(name: str, players: Iterable[Player]) -> TeamLineup:
-    return TeamLineup(name=name,
-                      players=[(next(players), Position.B) for i in range(6)] +
-                              [(next(players), Position.GK)] +
-                              [(next(players), Position.D) for i in range(4)] +
-                              [(next(players), Position.M) for i in range(4)] +
-                              [(next(players), Position.F) for i in range(2)])
+        return Selection(name=self.name, players=players.items())
 
 
 def logistic(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-x))
 
 
-def _calculate_team_probs(lineup: TeamLineup, other_lineup: TeamLineup) -> List[Tx]:
-    name = lineup.name
-    other_name = other_lineup.name
+def _calculate_team_probs(selection: Selection, other_selection: Selection) -> List[Tx]:
+    name = selection.name
+    other_name = other_selection.name
 
-    gk_passing = lineup.total_ability(Ability.PASSING, Position.GK)
+    gk_passing = selection.total_ability(Ability.PASSING, Position.GK)
 
-    d_passing = lineup.total_ability(Ability.PASSING, Position.D)
-    m_passing = lineup.total_ability(Ability.PASSING, Position.M)
-    f_passing = lineup.total_ability(Ability.PASSING, Position.F)
+    d_passing = selection.total_ability(Ability.PASSING, Position.D)
+    m_passing = selection.total_ability(Ability.PASSING, Position.M)
+    f_passing = selection.total_ability(Ability.PASSING, Position.F)
 
-    of_intercepting = other_lineup.total_ability(Ability.INTERCEPTION, Position.F)
-    om_intercepting = other_lineup.total_ability(Ability.INTERCEPTION, Position.M)
-    od_intercepting = other_lineup.total_ability(Ability.INTERCEPTION, Position.D)
+    of_intercepting = other_selection.total_ability(Ability.INTERCEPTION, Position.F)
+    om_intercepting = other_selection.total_ability(Ability.INTERCEPTION, Position.M)
+    od_intercepting = other_selection.total_ability(Ability.INTERCEPTION, Position.D)
 
-    d_dribbling = lineup.total_ability(Ability.DRIBBLING, Position.D)
-    m_dribbling = lineup.total_ability(Ability.DRIBBLING, Position.M)
-    f_dribbling = lineup.total_ability(Ability.DRIBBLING, Position.F)
+    d_dribbling = selection.total_ability(Ability.DRIBBLING, Position.D)
+    m_dribbling = selection.total_ability(Ability.DRIBBLING, Position.M)
+    f_dribbling = selection.total_ability(Ability.DRIBBLING, Position.F)
 
-    of_tackling = other_lineup.total_ability(Ability.TACKLING, Position.F)
-    om_tackling = other_lineup.total_ability(Ability.TACKLING, Position.M)
-    od_tackling = other_lineup.total_ability(Ability.TACKLING, Position.D)
-    ogk_tackling = other_lineup.total_ability(Ability.TACKLING, Position.GK)
+    of_tackling = other_selection.total_ability(Ability.TACKLING, Position.F)
+    om_tackling = other_selection.total_ability(Ability.TACKLING, Position.M)
+    od_tackling = other_selection.total_ability(Ability.TACKLING, Position.D)
+    ogk_tackling = other_selection.total_ability(Ability.TACKLING, Position.GK)
 
-    m_shooting = lineup.total_ability(Ability.SHOOTING, Position.M)
-    f_shooting = lineup.total_ability(Ability.SHOOTING, Position.F)
+    m_shooting = selection.total_ability(Ability.SHOOTING, Position.M)
+    f_shooting = selection.total_ability(Ability.SHOOTING, Position.F)
 
-    om_blocking = other_lineup.total_ability(Ability.BLOCKING, Position.M)
-    od_blocking = other_lineup.total_ability(Ability.BLOCKING, Position.D)
-    ogk_blocking = other_lineup.total_ability(Ability.BLOCKING, Position.GK)
+    om_blocking = other_selection.total_ability(Ability.BLOCKING, Position.M)
+    od_blocking = other_selection.total_ability(Ability.BLOCKING, Position.D)
+    ogk_blocking = other_selection.total_ability(Ability.BLOCKING, Position.GK)
 
     p_gk_d = logistic(gk_passing - of_intercepting)
     p_gk_m = logistic(gk_passing - om_intercepting)
@@ -250,9 +221,9 @@ def _calculate_team_probs(lineup: TeamLineup, other_lineup: TeamLineup) -> List[
     ]
 
 
-def calculate_markov_chain(lineup1: TeamLineup, lineup2: TeamLineup) -> MarkovChain:
-    return MarkovChain(_calculate_team_probs(lineup=lineup1, other_lineup=lineup2) +
-                       _calculate_team_probs(lineup=lineup2, other_lineup=lineup1))
+def calculate_markov_chain(selection_1: Selection, selection_2: Selection) -> MarkovChain:
+    return MarkovChain(_calculate_team_probs(selection=selection_1, other_selection=selection_2) +
+                       _calculate_team_probs(selection=selection_2, other_selection=selection_1))
 
 
 def next_goal_probs(mc: MarkovChain,
@@ -262,104 +233,3 @@ def next_goal_probs(mc: MarkovChain,
         (S(name, team_state)
          for team_state in team_states
          for name in names))
-
-
-def optmise_player_positions_in_parrallel(
-        lineups_by_name: Dict[str, TeamLineup],
-        team_states: Iterable[TeamState],
-        max_cycles_without_improvement: int = 100) -> Dict[str, TeamLineup]:
-    names = list(lineups_by_name.keys())
-
-    local_lineups_by_name = dict(lineups_by_name)
-
-    cycles_without_improvement = 0
-
-    while cycles_without_improvement < max_cycles_without_improvement:
-
-        for name in names:
-            lineup = local_lineups_by_name[name]
-
-            next_goal_p = sum(
-                evaluate_lineup(lineup=lineup,
-                                reference_lineups=local_lineups_by_name.values(),
-                                team_states=team_states)) / len(local_lineups_by_name)
-
-            trial_next_goal_p, trial_lineup, description = _experiment_with_positioning(lineup=lineup,
-                                                                                        reference_lineups=local_lineups_by_name.values(),
-                                                                                        team_states=team_states)
-
-            if not trial_lineup:
-                continue
-            elif trial_next_goal_p > next_goal_p:
-                local_lineups_by_name[name] = trial_lineup
-                logger.info('Change by %s: %s' % (name, description))
-                cycles_without_improvement = 0
-        logger.info('cycles_without_improvement %d' % cycles_without_improvement)
-        cycles_without_improvement += 1
-
-    return local_lineups_by_name
-
-
-def _experiment_with_positioning(lineup: TeamLineup,
-                                 reference_lineups: List[TeamLineup],
-                                 team_states: Iterable[TeamState]) -> Tuple[float, TeamLineup, str]:
-    if np.random.choice(a=[True, False]):
-        player = np.random.choice(a=list(lineup.keys()))
-        old_position = lineup[player]
-        new_position = np.random.choice(a=[pos for pos in Position if pos is not old_position])
-        description = 'Move %s from %s to %s.' % (str(player.name), old_position.name, new_position.name)
-        try:
-            new_lineup = lineup.with_player_positions(player_positions=[(player, new_position)])
-        except:
-            return (0, None, description)
-    else:
-        player1, player2 = np.random.choice(a=list(lineup.keys()),
-                                            size=2,
-                                            replace=False)
-        position1, position2 = lineup[player1], lineup[player2]
-        description = 'Swap %s in %s for %s in %s.' % (
-            str(player1.name), position1.name, str(player2.name), position2.name)
-        if position1 is position2:
-            return (0, None, description)
-        try:
-            new_lineup = lineup.with_player_positions(
-                player_positions=[(player1, position2), (player2, position1)])
-        except:
-            return (0, None, description)
-
-    new_next_goal_prob = sum(evaluate_lineup(lineup=new_lineup,
-                                             reference_lineups=reference_lineups,
-                                             team_states=team_states)) / len(reference_lineups)
-    return new_next_goal_prob, new_lineup, description
-
-
-def evaluate_lineup(
-        lineup: TeamLineup,
-        reference_lineups: Iterable[TeamLineup],
-        team_states: Iterable[TeamState]) -> Iterable[float]:
-    for reference_lineup in reference_lineups:
-        next_goal_prob = 0.5 if reference_lineup.name is lineup.name else \
-            next_goal_probs(mc=calculate_markov_chain(lineup1=lineup,
-                                                      lineup2=reference_lineup),
-                            team_states=team_states)[S(lineup.name, TeamState.SCORED)]
-        yield next_goal_prob
-
-
-def create_next_goal_matrix(lineups: List[TeamLineup], team_states: Iterable[TeamState]) -> pd.DataFrame:
-    names = [lineup.name for lineup in lineups]
-    n = len(lineups)
-    A = np.zeros(shape=(n, n))
-    for row_index, lineup in enumerate(lineups):
-        A[row_index, :] = list(evaluate_lineup(lineup=lineup,
-                                               reference_lineups=lineups,
-                                               team_states=team_states))
-    frame = pd.DataFrame(data=pd.DataFrame(A, index=names, columns=names))
-    frame['mean'] = frame.mean(axis=1)
-
-    frame.sort_values(['mean'], inplace=True, ascending=False)
-
-    cols = frame.columns.tolist()
-    cols = cols[-1:] + cols[:-1]
-    frame = frame[cols]
-
-    return frame

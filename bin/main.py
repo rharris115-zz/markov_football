@@ -1,9 +1,10 @@
 from markov_football.markov_football import *
+from markov_football.util import *
 from pprint import pprint
 from markov_football.name import football_clubs_by_league
 
 
-def display_league(lineups_by_name: Dict[str, List[TeamLineup]]):
+def display_league(lineups_by_name: Dict[str, List[Selection]]):
     table = create_next_goal_matrix(lineups_by_name.values(), team_states=[TeamState.WITH_M])
     mean_table = table.loc[:, ['mean']]
 
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     clubs_by_league = football_clubs_by_league()
 
     lineups_by_league = OrderedDict(
-        ((league, {club: create_lineup(name=club, players=generate_random_player_population(n=17))
+        ((league, {club: create_selection(name=club, players=generate_random_player_population(n=17))
                    for club in clubs})
          for league, clubs in clubs_by_league.items()))
 
@@ -40,7 +41,7 @@ if __name__ == '__main__':
         display_league(lineups_by_name=lineups_by_name)
 
         for optimisation in range(1, 10):
-            new_lineups_by_name = optmise_player_positions_in_parrallel(lineups_by_name=lineups_by_name,
+            new_lineups_by_name = optmise_player_positions_in_parrallel(selections_by_name=lineups_by_name,
                                                                         team_states=[TeamState.WITH_M],
                                                                         max_cycles_without_improvement=10)
 
