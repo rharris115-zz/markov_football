@@ -32,15 +32,18 @@ if __name__ == '__main__':
          for league, clubs in clubs_by_league.items()))
 
     for league, selections_by_name in lineups_by_league.items():
-        # new_selections = list(optmise_player_positions_in_parrallel(selections=selections_by_name.values(),
-        #                                                             team_states=[TeamState.WITH_M],
-        #                                                             max_cycles_without_improvement=25))
-        # selections_by_name.clear()
-        # selections_by_name.update({selection.name for selection in new_selections})
+
+        names = list(selections_by_name.keys())
+
+        points, wins, draws, losses, goals, conceded_goals = Counter(), Counter(), Counter(), Counter(), Counter(), Counter()
 
         for week, fixtures_this_week in enumerate(fixtures(selections_by_name.keys())):
+
             for club_1, club_2 in fixtures_this_week:
                 print('Week %d: %s vs. %s' % (week, club_1, club_2))
+
+                if not club_1 or not club_2:
+                    continue
 
                 selection_1 = selections_by_name[club_1]
                 selection_2 = selections_by_name[club_2]
@@ -55,26 +58,41 @@ if __name__ == '__main__':
                 display_league(lineups_by_name={club_1: selection_1,
                                                 club_2: selection_2})
 
-                mc = calculate_markov_chain(selection_1=selection_1, selection_2=selection_2)
+                score_keeper = hold_fixture(selection_1=selection_1, selection_2=selection_2)
 
-                score_keeper = Counter()
-                s = S(club_1, TeamState.WITH_M)
-                for step in range(100):
-                    next_s = mc.simulate_next(s)
+                goals.update(score_keeper)
+                conceded_goals[club_1] += score_keeper[club_2]
+                conceded_goals[club_2] += score_keeper[club_1]
 
-                    if next_s == S(club_1, TeamState.SCORED):
-                        score_keeper.update([club_1])
-                        s = S(club_2, TeamState.WITH_M)
-                    elif next_s == S(club_2, TeamState.SCORED):
-                        score_keeper.update([club_2])
-                        s = S(club_1, TeamState.WITH_M)
-                    else:
-                        s = next_s
+                if score_keeper[club_1] > score_keeper[club_2]:
+                    points[club_1] += 3
+                    wins[club_1] += 1
+                    losses[club_2] += 1
+                elif score_keeper[club_2] > score_keeper[club_1]:
+                    points[club_2] += 3
+                    wins[club_2] += 1
+                    losses[club_1] += 1
+                else:
+                    points[club_1] += 1
+                    points[club_2] += 1
+                    draws[club_1] += 1
+                    draws[club_2] += 1
 
                 print()
                 print('%s: %d\t%s: %d' % (club_1, score_keeper[club_1], club_2, score_keeper[club_2]))
                 print()
                 print()
-            print()
-            print()
+
+            data = OrderedDict([('p', [points[name] for name in names]),
+                                ('w', [wins[name] for name in names]),
+                                ('d', [draws[name] for name in names]),
+                                ('l', [losses[name] for name in names]),
+                                ('g', [goals[name] for name in names]),
+                                ('c', [conceded_goals[name] for name in names]),
+                                ('gd', [goals[name] - conceded_goals[name] for name in names])])
+            table = pd.DataFrame(data=data, index=names)
+            table.sort_values(['p', 'gd', 'g'], ascending=[False, False, False], inplace=True)
+
+            print('Table after week %d.' % week)
+            print(table)
             print()

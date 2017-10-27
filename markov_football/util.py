@@ -145,7 +145,7 @@ def create_next_goal_matrix(selections: List[Selection], team_states: Iterable[T
     return frame
 
 
-def fixtures(teams: Iterable[str]) -> Iterable[str]:
+def fixtures(teams: Iterable[str]) -> Iterable[List[str]]:
     teams = list(teams)
     if len(teams) % 2:
         teams.append(None)
@@ -163,3 +163,27 @@ def fixtures(teams: Iterable[str]) -> Iterable[str]:
         dq2.append(dq1.pop())
         # reattach first competitor
         dq1.appendleft(start)
+
+
+def hold_fixture(selection_1: Selection, selection_2: Selection):
+    selection_1, selection_2 = optmise_player_positions_in_parrallel(
+        selections=(selection_1, selection_2),
+        team_states=[TeamState.WITH_M])
+
+    mc = calculate_markov_chain(selection_1=selection_1, selection_2=selection_2)
+
+    score_keeper = Counter()
+    s = S(selection_1.name, TeamState.WITH_M)
+    for step in range(100):
+        next_s = mc.simulate_next(s)
+
+        if next_s == S(selection_1.name, TeamState.SCORED):
+            score_keeper.update([selection_1.name])
+            s = S(selection_2.name, TeamState.WITH_M)
+        elif next_s == S(selection_2.name, TeamState.SCORED):
+            score_keeper.update([selection_2.name])
+            s = S(selection_1.name, TeamState.WITH_M)
+        else:
+            s = next_s
+
+    return score_keeper
