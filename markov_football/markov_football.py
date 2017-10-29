@@ -104,7 +104,7 @@ class Selection(dict):
         f = defaultdict(list)
         for player, position in self.items():
             f[position].append(player)
-        return OrderedDict(((position, f[position]) for position in Position))
+        return OrderedDict((position, f[position]) for position in Position)
 
     def with_addition(self, player: Player, position: Position) -> Selection:
         players = list(self.items() + [(player, position)])
