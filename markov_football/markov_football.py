@@ -41,8 +41,7 @@ class S(NamedTuple):
 
 class Ability(Enum):
     BLOCKING = auto()
-    TACKLING = auto()
-    INTERCEPTION = auto()
+    BALL_WINNING = auto()
     SHOOTING = auto()
     DRIBBLING = auto()
     PASSING = auto()
@@ -131,7 +130,7 @@ class Selection(dict):
 
 
 def logistic(x: float) -> float:
-    return 1.0 / (1.0 + math.exp(-x))
+    return 1.0 / (1.0 + math.exp(-x / 4))
 
 
 def _calculate_team_probs(selection: Selection, other_selection: Selection) -> List[Tx]:
@@ -139,23 +138,21 @@ def _calculate_team_probs(selection: Selection, other_selection: Selection) -> L
     other_name = other_selection.name
 
     gk_passing = selection.total_ability(Ability.PASSING, Position.GK)
-
     d_passing = selection.total_ability(Ability.PASSING, Position.D)
     m_passing = selection.total_ability(Ability.PASSING, Position.M)
     f_passing = selection.total_ability(Ability.PASSING, Position.F)
 
-    of_intercepting = other_selection.total_ability(Ability.INTERCEPTION, Position.F)
-    om_intercepting = other_selection.total_ability(Ability.INTERCEPTION, Position.M)
-    od_intercepting = other_selection.total_ability(Ability.INTERCEPTION, Position.D)
+    f_ball_winning = selection.total_ability(Ability.BALL_WINNING, Position.F)
+    m_ball_winning = selection.total_ability(Ability.BALL_WINNING, Position.M)
+    d_ball_winning = selection.total_ability(Ability.BALL_WINNING, Position.D)
+
+    of_ball_winning = other_selection.total_ability(Ability.BALL_WINNING, Position.F)
+    om_ball_winning = other_selection.total_ability(Ability.BALL_WINNING, Position.M)
+    od_ball_winning = other_selection.total_ability(Ability.BALL_WINNING, Position.D)
 
     d_dribbling = selection.total_ability(Ability.DRIBBLING, Position.D)
     m_dribbling = selection.total_ability(Ability.DRIBBLING, Position.M)
     f_dribbling = selection.total_ability(Ability.DRIBBLING, Position.F)
-
-    of_tackling = other_selection.total_ability(Ability.TACKLING, Position.F)
-    om_tackling = other_selection.total_ability(Ability.TACKLING, Position.M)
-    od_tackling = other_selection.total_ability(Ability.TACKLING, Position.D)
-    ogk_tackling = other_selection.total_ability(Ability.TACKLING, Position.GK)
 
     m_shooting = selection.total_ability(Ability.SHOOTING, Position.M)
     f_shooting = selection.total_ability(Ability.SHOOTING, Position.F)
@@ -164,19 +161,19 @@ def _calculate_team_probs(selection: Selection, other_selection: Selection) -> L
     od_blocking = other_selection.total_ability(Ability.BLOCKING, Position.D)
     ogk_blocking = other_selection.total_ability(Ability.BLOCKING, Position.GK)
 
-    p_gk_d = logistic(gk_passing - of_intercepting)
-    p_gk_m = logistic(gk_passing - om_intercepting)
-    p_gk_f = logistic(gk_passing - od_intercepting)
+    p_gk_d = logistic(gk_passing + d_ball_winning - of_ball_winning)
+    p_gk_m = logistic(gk_passing + m_ball_winning - om_ball_winning)
+    p_gk_f = logistic(gk_passing + f_ball_winning - od_ball_winning)
 
-    p_d_d = logistic(d_passing + d_dribbling - of_tackling)
-    p_d_m = logistic(d_passing + d_dribbling - of_tackling - om_intercepting)
+    p_d_d = logistic(d_passing + d_dribbling + d_ball_winning - of_ball_winning)
+    p_d_m = logistic(d_passing + d_dribbling + m_ball_winning - of_ball_winning)
 
-    p_m_m = logistic(m_passing + m_dribbling - om_tackling)
-    p_m_f = logistic(m_passing + m_dribbling - om_tackling - od_intercepting)
-    p_m_sc = logistic(m_shooting + m_dribbling - om_tackling - om_blocking - od_tackling - od_blocking - ogk_blocking)
+    p_m_m = logistic(m_passing + m_dribbling + m_ball_winning - om_ball_winning)
+    p_m_f = logistic(m_passing + m_dribbling + f_ball_winning - od_ball_winning)
+    p_m_sc = logistic(m_shooting + m_dribbling - om_blocking - od_blocking - ogk_blocking)
 
-    p_f_f = logistic(f_passing + f_dribbling - od_tackling)
-    p_f_sc = logistic(f_shooting + f_dribbling - od_tackling - od_blocking - ogk_blocking)
+    p_f_f = logistic(f_passing + f_dribbling + f_ball_winning - od_ball_winning)
+    p_f_sc = logistic(f_shooting + f_dribbling - od_blocking - ogk_blocking)
 
     return [
         # GK pass to D
@@ -208,8 +205,8 @@ def _calculate_team_probs(selection: Selection, other_selection: Selection) -> L
         Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_D), 1.0 - p_m_f),
 
         # M shoots
-        # Tx(S(name, TeamState.WITH_M), S(name, TeamState.SCORED), p_m_sc),
-        # Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_GK), 1.0 - p_m_sc),
+        Tx(S(name, TeamState.WITH_M), S(name, TeamState.SCORED), p_m_sc),
+        Tx(S(name, TeamState.WITH_M), S(other_name, TeamState.WITH_GK), 1.0 - p_m_sc),
 
         # F pass to F
         # Tx(S(name, TeamState.WITH_F), S(name, TeamState.WITH_F), p_f_f),
