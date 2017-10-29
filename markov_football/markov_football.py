@@ -172,7 +172,7 @@ def _calculate_team_probs(selection: Selection, other_selection: Selection) -> L
     p_m_f = logistic(m_passing + m_dribbling + f_ball_winning - od_ball_winning)
     p_m_sc = logistic(m_shooting + m_dribbling - om_blocking - od_blocking - ogk_blocking)
 
-    p_f_f = logistic(f_passing + f_dribbling + f_ball_winning + f_ball_winning - od_ball_winning)
+    p_f_f = logistic(f_passing + f_dribbling + f_ball_winning - od_ball_winning)
     p_f_sc = logistic(f_shooting + f_dribbling - od_blocking - ogk_blocking)
 
     return [
