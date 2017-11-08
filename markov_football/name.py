@@ -12,12 +12,12 @@ class NamesGenerator(object):
     @staticmethod
     def names(n: int) -> Iterable[Tuple[str, str]]:
         if not NamesGenerator._first_names:
-            with open(os.path.join('..', 'names', 'census-dist-male-first.csv')) as file:
+            with open(os.path.join(os.path.dirname(__file__), '..', 'names', 'census-dist-male-first.csv')) as file:
                 r = csv.reader(file, delimiter=',')
                 NamesGenerator._first_names = [name for name, *rest in r]
 
         if not NamesGenerator._last_names:
-            with open(os.path.join('..', 'names', 'census-dist-2500-last.csv')) as file:
+            with open(os.path.join(os.path.dirname(__file__), '..', 'names', 'census-dist-2500-last.csv')) as file:
                 r = csv.reader(file, delimiter=',')
                 NamesGenerator._last_names = [name for name, *rest in r]
 
@@ -27,7 +27,7 @@ class NamesGenerator(object):
 
 def football_clubs_by_league() -> Dict[str, List[str]]:
     clubs_by_league = OrderedDict()
-    with open(os.path.join('..', 'names', 'england_clubs.csv')) as file:
+    with open(os.path.join(os.path.dirname(__file__), '..', 'names', 'england_clubs.csv')) as file:
         r = csv.reader(file, delimiter=',')
         for club_name, league, *rest in r:
             clubs = clubs_by_league.get(league)
