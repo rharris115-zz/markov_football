@@ -1,54 +1,52 @@
 from markov_football.markov_football import *
+from markov_football.util import *
 from pprint import pprint
 from markov_football.name import football_clubs_by_league
-
-
-def display_league(lineups_by_name: Dict[str, List[TeamLineup]]):
-    table = create_next_goal_matrix(lineups_by_name.values(), team_states=[TeamState.WITH_M])
-    mean_table = table.loc[:, 'mean']
-    print(mean_table)
-    print()
-
-    top_lineup_name = mean_table.index[0]
-    print(top_lineup_name)
-    for position, players in lineups_by_name[top_lineup_name].formation().items():
-        print('%s: %s' % (position, ','.join(map(str, map(lambda p: p.name, players)))))
-    print()
-
 
 if __name__ == '__main__':
 
     clubs_by_league = football_clubs_by_league()
 
     lineups_by_league = OrderedDict(
-        ((league, {club: create_lineup(name=club, players=generate_random_player_population(n=11))
+        ((league, {club: create_selection(name=club, players=generate_random_player_population(n=17))
                    for club in clubs})
          for league, clubs in clubs_by_league.items()))
 
-    for league, lineups_by_name in lineups_by_league.items():
-        print('%s: Initial player allocation' % league)
-        display_league(lineups_by_name=lineups_by_name)
+    for league, selections_by_name in lineups_by_league.items():
 
-        for optimisation in range(1, 100):
-            new_lineups_by_name = optmise_player_positions_in_parrallel(lineups_by_name=lineups_by_name,
-                                                                        team_states=[TeamState.WITH_M],
-                                                                        max_cycles_without_improvement=10)
+        names = list(selections_by_name.keys())
 
-            lineups_by_name.clear()
-            lineups_by_name.update(new_lineups_by_name)
+        points, wins, draws, losses, goals, conceded_goals = Counter(), Counter(), Counter(), Counter(), Counter(), Counter()
 
-            display_league(lineups_by_name=lineups_by_name)
+        player_position_history = defaultdict(list)
 
-            # for step in range(1000):
-            #     next_s = mc.simulate_next(s)
-            #
-            #     if next_s == S('home', TeamState.SCORED):
-            #         home_score += 1
-            #         s = S('away', TeamState.WITH_M)
-            #     elif next_s == S('away', TeamState.SCORED):
-            #         away_score += 1
-            #         s = S('home', TeamState.WITH_M)
-            #     else:
-            #         s = next_s
-            #
-            #     print(step, home_score, away_score, s)
+        for week, fixtures_this_week in enumerate(fixtures(selections_by_name.keys())):
+            hold_week(fixtures=fixtures_this_week, selections_by_name=selections_by_name,
+                      player_position_history=player_position_history, goals=goals, conceded_goals=conceded_goals,
+                      points=points, wins=wins, losses=losses, draws=draws)
+
+
+
+            data = OrderedDict([('p', [points[name] for name in names]),
+                                ('w', [wins[name] for name in names]),
+                                ('d', [draws[name] for name in names]),
+                                ('l', [losses[name] for name in names]),
+                                ('g', [goals[name] for name in names]),
+                                ('c', [conceded_goals[name] for name in names]),
+                                ('gd', [goals[name] - conceded_goals[name] for name in names])])
+            table = pd.DataFrame(data=data, index=names)
+            table.sort_values(['p', 'gd', 'g'], ascending=[False, False, False], inplace=True)
+
+            print('Table after week %d.' % week)
+            print(table)
+            print()
+
+        for club, selection in selections_by_name.items():
+            print(club)
+            for player in selection.keys():
+                count = Counter(player_position_history[player.name])
+                print(player.name, [(position.name, count[position])
+                                    for position in Position])
+            print()
+
+        break
